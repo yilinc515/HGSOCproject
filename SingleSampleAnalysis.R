@@ -10,6 +10,7 @@ library(EnsDb.Hsapiens.v86)
 library(scran)
 library(BiocParallel)
 library(SingleR)
+library(pheatmap)
 #Sys.setenv("DISPLAY"=":0.0")
 
 sce <- read10xCounts(file.path("16030X2"), col.names = TRUE, type = "sparse", version = "3")
@@ -186,17 +187,69 @@ sce.hvg <- runUMAP(sce.hvg, dimred="PCA")
 plotReducedDim(sce.hvg, dimred="UMAP") # no available annotation
 
 
+
 # ------------
 # Clustering (Graph based)
 # ------------
+g <- buildSNNGraph(sce.hvg, k=20, use.dimred = 'PCA') # need to further decide what k to use
+clust <- igraph::cluster_walktrap(g)$membership
+table(clust)
+
+# colLabels(sce.hvg) <- factor(clust)  THIS IS ONLY AVAILABLE IN SCE 1.9.3, needs BioC-devel
+sce.hvg$label <- factor(clust)
+plotReducedDim(sce.hvg, dimred = "UMAP", colour_by="label")  
+# plot by TSNE gives error "Error in `rownames<-`(`*tmp*`, value = c("AAACCCAAGCCACCGT-1", "AAACCCAAGGATGGCT-1",  : 
+# attempt to set 'rownames' on an object with no dimensions"
+
+
+#  Assessing cluster separation
+ratio <- clusterModularity(g, clust, as.ratio=TRUE)
+dim(ratio)
+pheatmap(log2(ratio+1), cluster_rows=FALSE, cluster_cols=FALSE,
+         color=colorRampPalette(c("white", "blue"))(100))
+
+# Evaluating cluster stability
+myClusterFUN <- function(x) {
+  g <- buildSNNGraph(x, use.dimred="PCA", type="jaccard")
+  igraph::cluster_louvain(g)$membership
+}
+
+originals <- myClusterFUN(sce.hvg)
+
+set.seed(001001)
+coassign <- bootstrapCluster(sce.hvg, FUN=myClusterFUN, clusters=originals)
+dim(coassign)
+
+pheatmap(coassign, cluster_row=FALSE, cluster_col=FALSE,
+         color=rev(viridis::magma(100)))
+
+
+
+
 
 # ------------
-# Marker Gene selection
+# Marker Gene selection, one-sided t-test
 # ------------
+
+markers <- findMarkers(sce.hvg, groups=sce.hvg$label, pval.type="some", direction="up")
+markers
+
+
 
 # ------------
 # Cell Type annotation with SingleR
 # ------------
+
+# using in-built references - unsatisfactory results
+ref <- BlueprintEncodeData()
+pred <- SingleR(test=sce.hvg, ref=ref, labels=ref$label.main)
+table(pred$labels)
+plotScoreHeatmap(pred)
+
+tab <- table(Assigned=pred$pruned.labels, Cluster=sce.hvg$label)
+pheatmap(log2(tab+10), color=colorRampPalette(c("white", "blue"))(101))
+
+plotDeltaDistribution(pred, ncol = 3)
 
 
 # SingleR runs in two modes: (1) Single-cell: the annotation is performed for each single-cell independently
