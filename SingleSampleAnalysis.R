@@ -3,11 +3,13 @@
 # ------------
 # Data loading
 # ------------
+library(ggplot)
 library(DropletUtils)
 library(scater)
 library(EnsDb.Hsapiens.v86)
 library(scran)
 library(BiocParallel)
+library(SingleR)
 #Sys.setenv("DISPLAY"=":0.0")
 
 sce <- read10xCounts(file.path("16030X2"), col.names = TRUE, type = "sparse", version = "3")
@@ -48,24 +50,6 @@ sce
 #sce <- sce[,!high.mito]
 
 
-'''
-colData(unfiltered) <- cbind(colData(unfiltered), stats)
-unfiltered$discard <- high.mito
-
-
-qcplots <- list()
-qcplots[[1]] <- plotColData(unfiltered, x="sum", y="subsets_Mito_percent",
-                            colour_by="discard") + scale_x_log10()
-qcplots[[2]] <-plotColData(unfiltered, x="detected", y="subsets_Mito_percent",
-                         colour_by="discard") + scale_x_log10()
-qcplots[[3]] <-plotColData(unfiltered, x="detected", y="sum",
-                           colour_by="discard") + scale_y_log10()
-
-do.call(gridExtra::grid.arrange, c(qcplots, ncol=3))
-summary(high.mito)
-
-metrics <- as.data.frame(colData(sce))
-'''
 
 #mitochondrial read fraction and number of unique features (genes) with at least one read
 metrics <- as.data.frame(colData(sce))
@@ -127,10 +111,94 @@ clusters <- quickCluster(sce)
 sce <- computeSumFactors(sce, cluster=clusters)
 sce <- logNormCounts(sce)
 summary(sizeFactors(sce))
-plot(librarySizeFactors(sce), sizeFactors(sce), pch=16,
-     xlab="Library size factors", ylab="Deconvolution factors", log="xy")
+
+plot(librarySizeFactors(sce), sizeFactors(sce), pch=16, xlab="Library size factors", ylab="Deconvolution factors", log="xy")
 
 # ------------
-# Feature selection
+# Feature selection assuming near-Poisson variation
 # ------------
 
+# Quantifying per-gene variation
+set.seed(1001)
+pois <- modelGeneVarByPoisson(sce)
+pois <- pois[order(pois$bio, decreasing=TRUE),]
+head(pois)
+
+plot(pois$mean, pois$total, pch=16, xlab="Mean of log-expression", ylab="Variance of log-expression")
+curve(metadata(pois)$trend(x), col="dodgerblue", add=TRUE)
+
+# Selecting highly variable genes
+# select the top 10% of genes with the highest biological components
+dec <- modelGeneVar(sce)
+top.sce <- getTopHVGs(dec, prop=0.1)
+str(top.sce)
+
+# store hvg in AltExp
+sce.hvg <- sce[top.sce,]
+altExp(sce.hvg, "original") <- sce
+altExpNames(sce.hvg)
+# To recover original data: sce.original <- altExp(sce.hvg, "original", withColData=TRUE)
+
+
+# ------------
+# Dimensionality reductionn with PCA and NMF
+# ------------
+set.seed(1002) 
+sce.hvg <- runPCA(sce.hvg) 
+dim(reducedDim(sce.hvg, "PCA"))
+
+#Choose the number of PCs Using the technical noise
+set.seed(1003)
+denoised.sce <- denoisePCA(sce.hvg, technical=dec)
+ncol(reducedDim(denoised.sce))  # 5, elbow point gives 6
+
+# OR: Based on population structure
+# takes too long to run
+pcs <- reducedDim(sce.hvg)
+choices <- getClusteredPCs(pcs)
+metadata(choices)$chosen
+
+# Set d = 10 for inital analysis
+reducedDim(sce.hvg, "PCA") <- reducedDim(sce.hvg, "PCA")[,1:10]
+
+# NMF  NOT WORKING!!!
+set.seed(101001)
+nmf.sce <- runNMF(sce.hvg, ncomponents=10, altexp = NULL)
+
+nmf.out <- reducedDim(nmf.sce, "NMF")
+nmf.basis <- attr(nmf.out, "basis")
+colnames(nmf.out) <- colnames(nmf.basis) <- 1:10
+
+per.cell <- pheatmap::pheatmap(nmf.out, silent=TRUE, 
+                               main="By cell", show_rownames=FALSE,
+                               color=rev(viridis::magma(100)), cluster_cols=FALSE) 
+
+per.gene <- pheatmap::pheatmap(nmf.basis, silent=TRUE, 
+                               main="By gene", cluster_cols=FALSE, show_rownames=FALSE,
+                               color=rev(viridis::magma(100)))
+
+gridExtra::grid.arrange(per.cell[[4]], per.gene[[4]], ncol=2)
+
+
+# Visualization with UMAP
+set.seed(1100)
+sce.hvg <- runUMAP(sce.hvg, dimred="PCA")
+plotReducedDim(sce.hvg, dimred="UMAP") # no available annotation
+
+
+# ------------
+# Clustering (Graph based)
+# ------------
+
+# ------------
+# Marker Gene selection
+# ------------
+
+# ------------
+# Cell Type annotation with SingleR
+# ------------
+
+
+# SingleR runs in two modes: (1) Single-cell: the annotation is performed for each single-cell independently
+# (2) Cluster: the annotation is performed on predefined clusters, where the expression of a
+# cluster is the sum expression of all cells in the cluster https://www.biorxiv.org/content/biorxiv/suppl/2018/03/19/284604.DC1/284604-2.pdf
