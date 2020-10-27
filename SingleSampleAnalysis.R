@@ -227,12 +227,13 @@ pheatmap(coassign, cluster_row=FALSE, cluster_col=FALSE,
 
 
 
+
 # ------------
 # Marker Gene selection, one-sided t-test
 # ------------
 
 # markers <- findMarkers(sce.hvg, groups=sce.hvg$label, pval.type="some", direction="up")
-markers <- findMarkers(sce.hvg, groups=sce.hvg$label, direction="up")
+markers <- findMarkers(sce.hvg, groups=sce.hvg$label, pval.type="all", direction="up")
 # marker.set <- markers[["1"]]
 # markers.chosen <- rownames(marker.set)[marker.set$Top <= 5]
 markers.chosen <- vector()
@@ -240,10 +241,44 @@ a <- 1:length(markers)
 for (n in a) {
   print(n)
   marker.clust <- markers[[n]]
-  markers.chosen <- append(markers.chosen, rownames(marker.clust)[marker.clust$Top <= 3])
+  markers.chosen <- append(markers.chosen, rownames(marker.clust)[marker.clust$Top <= 10])
 }
 
 plotHeatmap(sce.hvg, features=unique(markers.chosen), order_columns_by="label")
+
+
+
+genes <- lapply(markers, function(x) {
+  rownames(x)[x$Top <= 10]
+})
+
+## uniqify the set of genes returned, after coercing to a vector
+genes <- unique(unlist(genes))
+
+plotHeatmap(sce.hvg, genes,
+            colour_columns_by = "clusters",
+            show_colnames = FALSE,
+            clustering_method = 'ward.D2',
+            fontsize_row = 6)
+
+
+
+# initialize a df to store avg exp level for each cluster
+cluster_mean <-data.frame((matrix(ncol = length(levels(sce.hvg$label)), nrow = length(row.names(sce.hvg)))), row.names = row.names(sce.hvg)) # define empty obj
+colnames(cluster_mean) <- levels(sce.hvg$label)
+
+# calculate mean logcount for each cluster
+for (cluster in  levels(sce.hvg$label)) {
+  
+  subset <- subset(sce.hvg, , sce.hvg$label == cluster)
+  
+  for (feature in row.names(sce.hvg)) {
+    
+    cluster_mean[feature, cluster] <- mean(logcounts(subset)[feature, ])
+  }
+}
+
+
 
 
 # ------------
