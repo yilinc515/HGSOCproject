@@ -155,12 +155,12 @@ ncol(reducedDim(denoised.sce))  # 5, elbow point gives 6
 
 # OR: Based on population structure
 # takes too long to run
-pcs <- reducedDim(sce.hvg)
-choices <- getClusteredPCs(pcs)
-metadata(choices)$chosen
+#pcs <- reducedDim(sce.hvg)
+#choices <- getClusteredPCs(pcs)
+#metadata(choices)$chosen
 
-# Set d = 10 for inital analysis
-reducedDim(sce.hvg, "PCA") <- reducedDim(sce.hvg, "PCA")[,1:10]
+# Set d = 30 for inital analysis
+reducedDim(sce.hvg, "PCA") <- reducedDim(sce.hvg, "PCA")[,1:30]
 
 # NMF  NOT WORKING!!!
 set.seed(101001)
@@ -231,9 +231,19 @@ pheatmap(coassign, cluster_row=FALSE, cluster_col=FALSE,
 # Marker Gene selection, one-sided t-test
 # ------------
 
-markers <- findMarkers(sce.hvg, groups=sce.hvg$label, pval.type="some", direction="up")
-markers
+# markers <- findMarkers(sce.hvg, groups=sce.hvg$label, pval.type="some", direction="up")
+markers <- findMarkers(sce.hvg, groups=sce.hvg$label, direction="up")
+# marker.set <- markers[["1"]]
+# markers.chosen <- rownames(marker.set)[marker.set$Top <= 5]
+markers.chosen <- vector()
+a <- 1:length(markers)
+for (n in a) {
+  print(n)
+  marker.clust <- markers[[n]]
+  markers.chosen <- append(markers.chosen, rownames(marker.clust)[marker.clust$Top <= 3])
+}
 
+plotHeatmap(sce.hvg, features=unique(markers.chosen), order_columns_by="label")
 
 
 # ------------
@@ -248,8 +258,6 @@ plotScoreHeatmap(pred)
 
 tab <- table(Assigned=pred$pruned.labels, Cluster=sce.hvg$label)
 pheatmap(log2(tab+10), color=colorRampPalette(c("white", "blue"))(101))
-
-plotDeltaDistribution(pred, ncol = 3)
 
 
 # SingleR runs in two modes: (1) Single-cell: the annotation is performed for each single-cell independently
