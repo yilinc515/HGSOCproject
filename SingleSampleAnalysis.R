@@ -336,8 +336,22 @@ colData(sce.hvg)$manual_annotation <- mapply(func1, sce.hvg$label)
 
 
 # ------------
-# InferCNV input preparation
+# InferCNV input preparation, see inferCNV wiki
 # ------------
-write.table(data.frame(rowData(sce.hvg)$Symbol), file = "gene_list.txt", quote = FALSE, sep = "\t",
-               row.names = FALSE)
+# Gene ordering file
+write.table(data.frame(rowData(sce.hvg)$Symbol), file = "gene_list.txt", quote = FALSE, sep = "\t", row.names = FALSE)
+# get gene coordinates from UCSD hgTable as gene_ordering_file.txt using gene_list.txt and hg19
+# Rearrage the tab-delim with command-line:
+# awk '{print $4, $1, $2, $3 > "gene_ordering_file.txt"}' gene_ordering_file.txt
 
+
+# Sample annotation file
+sample_annotation <-data.frame((matrix(ncol = 2, nrow = length(colnames(sce.hvg))))) # define empty df 
+sample_annotation[, 1] <- colnames(sce.hvg)
+sample_annotation[, 2] <- colData(sce.hvg)$manual_annotation
+write.table(sample_annotation, file = "cellAnnotations.txt", quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
+
+# ------------
+# Run InferCNV
+# ------------
+library(infercnv)
