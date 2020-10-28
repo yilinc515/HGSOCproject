@@ -11,6 +11,7 @@ library(scran)
 library(BiocParallel)
 library(SingleR)
 library(pheatmap)
+library(tidyverse)
 #Sys.setenv("DISPLAY"=":0.0")
 
 sce <- read10xCounts(file.path("16030X2"), col.names = TRUE, type = "sparse", version = "3")
@@ -234,17 +235,17 @@ pheatmap(coassign, cluster_row=FALSE, cluster_col=FALSE,
 
 # markers <- findMarkers(sce.hvg, groups=sce.hvg$label, pval.type="some", direction="up")
 markers <- findMarkers(sce.hvg, groups=sce.hvg$label, pval.type="all", direction="up")
-# marker.set <- markers[["1"]]
-# markers.chosen <- rownames(marker.set)[marker.set$Top <= 5]
+
+
+# Collect top 10 up-regulated genes from each cluster 
 markers.chosen <- vector()
 a <- 1:length(markers)
 for (n in a) {
-  print(n)
   marker.clust <- markers[[n]]
-  markers.chosen <- append(markers.chosen, rownames(marker.clust)[marker.clust$Top <= 10])
+  markers.chosen <- append(markers.chosen, rownames(marker.clust)[1:10])
 }
 
-plotHeatmap(sce.hvg, features=unique(markers.chosen), order_columns_by="label")
+plotHeatmap(sce.hvg, features=unique(markers.chosen), exprs_values = "logcounts", order_columns_by="label")
 
 
 
@@ -278,7 +279,23 @@ for (cluster in  levels(sce.hvg$label)) {
   }
 }
 
+# subset the dataframe with selected top genes
+cluster_mean_top <- subset(cluster_mean, rownames(cluster_mean) %in% unique(markers.chosen))
 
+# format cluster_mean_top data frame from wide format to long format
+dt <- cluster_mean_top %>%
+       rownames_to_column() %>%
+       gather(colname, value, -rowname)col
+
+# try plot the subsetted average log counts in a heatmap using ggplot2
+ggplot(dt, aes(x = colname, y = rowname, fill = value)) +
+  geom_tile(aes(fill = value), 
+            colour = "white") +
+  scale_fill_distiller(palette = "Reds", limits = c(0,10), na.value = "#de2d26",
+                       direction = 1, labels = c(0.0, 2.5, 5.0, 7.5, "> 10.0"))
+
+# use pheatmap
+pheatmap(cluster_mean_top, main = "pheatmap default")
 
 
 # ------------
@@ -295,6 +312,32 @@ tab <- table(Assigned=pred$pruned.labels, Cluster=sce.hvg$label)
 pheatmap(log2(tab+10), color=colorRampPalette(c("white", "blue"))(101))
 
 
-# SingleR runs in two modes: (1) Single-cell: the annotation is performed for each single-cell independently
-# (2) Cluster: the annotation is performed on predefined clusters, where the expression of a
-# cluster is the sum expression of all cells in the cluster https://www.biorxiv.org/content/biorxiv/suppl/2018/03/19/284604.DC1/284604-2.pdf
+# ------------
+# Cell Type annotation with gene expression heatmap (manual) 
+# For Sample 1
+# ------------
+func1 <- function(x)
+  if (x == "6" || x == "16") {
+    "B-cells"
+  } else if (x == "4" || x == "17") {
+    "Macrophages"
+  } else if (x == "9") {
+    "Monocytes"
+  } else if (x == "8" || x == "3") {
+    "Fibroblasts"
+  } else if (x == "7") {
+    "Endothelial cells"
+  } else if (x == "13") {
+    "T-cells"
+  } else {
+    "Malignant cells"
+  }
+colData(sce.hvg)$manual_annotation <- mapply(func1, sce.hvg$label)
+
+
+# ------------
+# InferCNV input preparation
+# ------------
+write.table(data.frame(rowData(sce.hvg)$Symbol), file = "gene_list.txt", quote = FALSE, sep = "\t",
+               row.names = FALSE)
+
