@@ -244,6 +244,7 @@ for (n in a) {
   marker.clust <- markers[[n]]
   markers.chosen <- append(markers.chosen, rownames(marker.clust)[1:10])
 }
+markers.chosen <- append(markers.chosen, "WFDC2")
 
 plotHeatmap(sce.hvg, features=unique(markers.chosen), exprs_values = "logcounts", order_columns_by="label")
 
@@ -285,7 +286,7 @@ cluster_mean_top <- subset(cluster_mean, rownames(cluster_mean) %in% unique(mark
 # format cluster_mean_top data frame from wide format to long format
 dt <- cluster_mean_top %>%
        rownames_to_column() %>%
-       gather(colname, value, -rowname)col
+       gather(colname, value, -rowname)
 
 # try plot the subsetted average log counts in a heatmap using ggplot2
 ggplot(dt, aes(x = colname, y = rowname, fill = value)) +
@@ -295,8 +296,17 @@ ggplot(dt, aes(x = colname, y = rowname, fill = value)) +
                        direction = 1, labels = c(0.0, 2.5, 5.0, 7.5, "> 10.0"))
 
 # use pheatmap
-pheatmap(cluster_mean_top, main = "pheatmap default")
+hm <- pheatmap(cluster_mean_top, main = "pheatmap default")
 
+# save heatmap
+save_pheatmap_png <- function(x, filename, width=1200, height=1000, res = 150) {
+  png(filename, width = width, height = height, res = res)
+  grid::grid.newpage()
+  grid::grid.draw(x$gtable)
+  dev.off()
+}
+
+save_pheatmap_png(hm, "avgexp_heatmap1.png")
 
 # ------------
 # Cell Type annotation with SingleR
@@ -330,19 +340,26 @@ func1 <- function(x)
   } else if (x == "13") {
     "T-cells"
   } else {
-    "Malignant cells"
+    paste("Malignant cells", x) # keep clustering label
   }
 colData(sce.hvg)$manual_annotation <- mapply(func1, sce.hvg$label)
 
 
 # ------------
-# InferCNV input preparation, see inferCNV wiki
+# InferCNV input preparation, see inferCNV wgene_ordering_file.txt using gene_list.txt and hg19
+# Rearrage the tab-delim with command-line:
+# awk '{print $4, $1, $2, $3 > "gene_ordering_file_formated.txt"}' gene_ordering_file.txt
+# Get unique genes:
+# awk -F , '{ a[$1]++ } END { for (b in a) { priiki
 # ------------
 # Gene ordering file
 write.table(data.frame(rowData(sce.hvg)$Symbol), file = "gene_list.txt", quote = FALSE, sep = "\t", row.names = FALSE)
-# get gene coordinates from UCSD hgTable as gene_ordering_file.txt using gene_list.txt and hg19
-# Rearrage the tab-delim with command-line:
-# awk '{print $4, $1, $2, $3 > "gene_ordering_file.txt"}' gene_ordering_file.txt
+# get gene coordinates from UCSD hgTable as nt b > "gene_ordering_file_unique.txt"} }' gene_ordering_file.txt
+df <- read.table("gene_ordering_file_formated.txt")
+# eliminate duplicate genes
+df <- df[!duplicated(tolower(df[,1])),]
+write.table(df, file = "gene_ordering_file_unique.txt", quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
+
 
 
 # Sample annotation file
@@ -352,6 +369,19 @@ sample_annotation[, 2] <- colData(sce.hvg)$manual_annotation
 write.table(sample_annotation, file = "cellAnnotations.txt", quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
 
 # ------------
-# Run InferCNV
+# Run InferCNV 
 # ------------
 library(infercnv)
+infercnv_obj = CreateInfercnvObject(raw_counts_matrix=counts(sce.hvg),
+                                     annotations_file="cellAnnotations.txt",
+                                     delim="\t",
+                                     gene_order_file="gene_ordering_file_unique.txt",
+                                     ref_group_names=c("T-cells", "B-cells", "Fibroblasts", "Monocytes", "Macrophages", "Endothelial cells"))
+
+infercnv_obj = infercnv::run(infercnv_obj,
+                             cutoff=0.1,  # use 1 for smart-seq, 0.1 for 10x-genomics
+                             out_dir="output_dir_keepclusterlabel",  # dir is auto-created for storing outputs
+                             cluster_by_groups=T,   # cluster
+                             denoise=T,
+                             HMM=T
+)
