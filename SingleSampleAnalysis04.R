@@ -14,7 +14,7 @@ library(pheatmap)
 library(tidyverse)
 #Sys.setenv("DISPLAY"=":0.0")
 
-sce04 <- read10xCounts(file.path("16040X3"), col.names = TRUE, type = "sparse", version = "3")
+sce04 <- read10xCounts(file.path("16030X4"), col.names = TRUE, type = "sparse", version = "3")
 
 
 rownames(sce04) <- uniquifyFeatureNames(rowData(sce04)$ID, rowData(sce04)$Symbol)
@@ -44,8 +44,11 @@ length(which(!initialFilt))
 sce04<-sce04[,initialFilt]
 sce04
 
-
-
+initialFilt2 <- sce04$subsets_Mito_percent < 90
+length(which(!initialFilt2))
+sce04<-sce04[,initialFilt2]
+sce04
+  
 #high.mito <- isOutlier(stats$subsets_Mito_percent, type="higher")
 #sce04 <- sce04[,!high.mito]
 
@@ -63,6 +66,9 @@ library(flexmix)
 options(scipen = 5)
 set.seed(1010)
 model<-flexmix(subsets_Mito_percent~detected,data=metrics,k=2)
+
+# check variance  parameters(model, component = 2, model = 1)
+
 model@components
 slope_1=model@components$Comp.1[[1]]@parameters$coef[2]
 intercept_1=model@components$Comp.1[[1]]@parameters$coef[1]
@@ -190,13 +196,13 @@ plotReducedDim(sce04.hvg, dimred="UMAP") # no available annotation
 # ------------
 # Clustering (Graph based)
 # ------------
-g <- buildSNNGraph(sce04.hvg, k=10, use.dimred = 'PCA') # need to further decide what k to use  # change k = 10 to get a finer resolution
+g <- buildSNNGraph(sce04.hvg, k=15, use.dimred = 'PCA') # need to further decide what k to use  # change k = 10 to get a finer resolution
 clust <- igraph::cluster_walktrap(g)$membership
 table(clust)
 
 # colLabels(sce04.hvg) <- factor(clust)  THIS IS ONLY AVAILABLE IN sce04 1.9.3, needs BioC-devel
 sce04.hvg$label <- factor(clust)
-plotReducedDim(sce04.hvg, dimred = "UMAP", colour_by="label")  
+plotReducedDim(sce04.hvg, dimred = UMAP", colour_by="label")  
 # plot by TSNE gives error "Error in `rownames<-`(`*tmp*`, value = c("AAACCCAAGCCACCGT-1", "AAACCCAAGGATGGCT-1",  : 
 # attempt to set 'rownames' on an object with no dimensions"
 
@@ -325,38 +331,33 @@ pheatmap(log2(tab+10), color=colorRampPalette(c("white", "blue"))(101))
 # For Sample 1
 # ------------
 func1 <- function(x)
-  if (x == "6" || x == "16") {
-    "B-cells"
-  } else if (x == "4" || x == "17") {
-    "Macrophages"
-  } else if (x == "9") {
-    "Monocytes"
-  } else if (x == "8" || x == "3") {
-    "Fibroblasts"
-  } else if (x == "7") {
+  if (x == "6" || x == "12") {
     "Endothelial cells"
-  } else if (x == "13") {
-    "T-cells"
+  } else if (x == "4" || x == "5") {
+    "Monocytes"
+  } else if (x == "7" || x == "9") {
+    "Fibroblasts"
   } else {
     paste("Malignant cells", x) # keep clustering label
   }
 colData(sce04.hvg)$manual_annotation <- mapply(func1, sce04.hvg$label)
 
 
+
 # ------------
-# InferCNV input preparation, see inferCNV wgene_ordering_file.txt using gene_list.txt and hg19
+# InferCNV input preparation, see inferCNV wgene_ordering_file.txt using gene_list04.txt and hg19
 # Rearrage the tab-delim with command-line:
-# awk '{print $4, $1, $2, $3 > "gene_ordering_file_formated.txt"}' gene_ordering_file.txt
+# awk '{print $4, $1, $2, $3 > "gene_ordering_file_formated04.txt"}' gene_ordering_file04.txt
 # Get unique genes:
-# awk -F , '{ a[$1]++ } END { for (b in a) { priiki
+# awk -F , '{ a[$1]++ } END { for (b in a) { print b} }
 # ------------
 # Gene ordering file
-write.table(data.frame(rowData(sce04.hvg)$Symbol), file = "gene_list.txt", quote = FALSE, sep = "\t", row.names = FALSE)
-# get gene coordinates from UCSD hgTable as nt b > "gene_ordering_file_unique.txt"} }' gene_ordering_file.txt
-df <- read.table("gene_ordering_file_formated.txt")
+write.table(data.frame(rowData(sce04.hvg)$Symbol), file = "gene_list04.txt", quote = FALSE, sep = "\t", row.names = FALSE)
+# get gene coordinates from UCSD hgTable as nt b > "gene_ordering_file_unique04.txt"} }' gene_ordering_file_formated04.txt
+df <- read.table("gene_ordering_file_formated04.txt")
 # eliminate duplicate genes
 df <- df[!duplicated(tolower(df[,1])),]
-write.table(df, file = "gene_ordering_file_unique.txt", quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
+write.table(df, file = "gene_ordering_file_unique04.txt", quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
 
 
 
@@ -364,22 +365,84 @@ write.table(df, file = "gene_ordering_file_unique.txt", quote = FALSE, sep = "\t
 sample_annotation <-data.frame((matrix(ncol = 2, nrow = length(colnames(sce04.hvg))))) # define empty df 
 sample_annotation[, 1] <- colnames(sce04.hvg)
 sample_annotation[, 2] <- colData(sce04.hvg)$manual_annotation
-write.table(sample_annotation, file = "cellAnnotations.txt", quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
+write.table(sample_annotation, file = "cellAnnotations04.txt", quote = FALSE, sep = "\t", row.names = FALSE, col.names = FALSE)
 
 # ------------
 # Run InferCNV 
 # ------------
 library(infercnv)
+library(SingleCellExperiment)
 infercnv_obj = CreateInfercnvObject(raw_counts_matrix=counts(sce04.hvg),
-                                    annotations_file="cellAnnotations.txt",
+                                    annotations_file="cellAnnotations04.txt",
                                     delim="\t",
-                                    gene_order_file="gene_ordering_file_unique.txt",
-                                    ref_group_names=c("T-cells", "B-cells", "Fibroblasts", "Monocytes", "Macrophages", "Endothelial cells"))
+                                    gene_order_file="gene_ordering_file_unique04.txt",
+                                    ref_group_names=c("Fibroblasts", "Monocytes", "Endothelial cells"))
 
 infercnv_obj = infercnv::run(infercnv_obj,
                              cutoff=0.1,  # use 1 for smart-seq, 0.1 for 10x-genomics
-                             out_dir="output_dir_keepclusterlabel",  # dir is auto-created for storing outputs
+                             out_dir="output_dir_keepclusterlabel_04",  # dir is auto-created for storing outputs
                              cluster_by_groups=T,   # cluster
                              denoise=T,
                              HMM=T
 )
+
+
+# Convert to Seurat
+manno_seurat <- Convert(from = manno, to = "seurat")
+
+
+# ------------
+# Maligant clusters -  epithelial marker expression heatmap  
+# ------------
+
+# epithial cell markers
+epi_molecularmarkers <- c("CD27", "CD44R", "CD49f", "CD66a", "CD75", "CD104", "CD121a", "CD133", "CD167", "CD326", "E-Cadherin")
+epi_markers <- c("CD27", "CD44", "ITGA6", "CEACAM1", "ST6GAL1", "ITGB4", "IL1R1", "PROM1", "DDR1", "EPCAM", "CDH1" )
+
+
+# Collect top 10 up-regulated genes from each maligant cluster 
+tumor_markers <- vector()
+tumor_clust_num <- c(2, 8, 11, 1, 3, 10)
+for (n in tumor_clust_num) {
+  marker.clust <- markers[[n]]
+  tumor_markers <- append(tumor_markers, rownames(marker.clust)[1:10])
+}
+tumor_markers <- append(tumor_markers, "WFDC2")
+
+tumor_epi_markers <- append(tumor_markers, epi_markers)
+
+
+altExp(sce04.hvg)$label <- sce04.hvg$label
+
+sce04_tumor <- subset(altExp(sce04.hvg), , label %in% c("1", "2", "3", "8", "10", "11"))
+plotHeatmap(sce04_tumor, features=unique(epi_markers), exprs_values = "logcounts", order_columns_by="label")
+plotHeatmap(sce04_tumor, features=unique(tumor_markers), exprs_values = "logcounts", order_columns_by="label")
+
+# initialize a df to store avg exp level for each cluster
+cluster_mean_tumor <-data.frame((matrix(ncol = length(levels(sce04_tumor$label)), nrow = length(row.names(sce04_tumor)))), row.names = row.names(sce04_tumor)) # define empty obj
+colnames(cluster_mean_tumor) <- levels(sce04_tumor$label)
+
+# calculate mean logcount for each tumor cluster
+for (cluster in  levels(sce04_tumor$label)) {
+  
+  subset <- subset(sce04_tumor, , sce04_tumor$label == cluster)
+  
+  for (feature in row.names(sce04_tumor)) {
+    
+    cluster_mean_tumor[feature, cluster] <- mean(logcounts(subset)[feature, ])
+  }
+}
+
+
+# subset the dataframe with selected top genes
+cluster_mean_epitumor <- subset(cluster_mean_tumor, rownames(cluster_mean_tumor) %in% unique(tumor_epi_markers))
+
+# format cluster_mean_top data frame from wide format to long format
+dt <- cluster_mean_epitumor %>%
+  rownames_to_column() %>%
+  gather(colname, value, -rowname)
+
+
+# use pheatmap
+hm <- pheatmap(cluster_mean_epitumor, main = "pheatmap default")
+

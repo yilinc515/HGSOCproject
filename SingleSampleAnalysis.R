@@ -17,10 +17,8 @@ library(tidyverse)
 sce <- read10xCounts(file.path("16030X2"), col.names = TRUE, type = "sparse", version = "3")
 
 
-rownames(sce) <- uniquifyFeatureNames(
-  rowData(sce)$ID, rowData(sce)$Symbol)
-location <- mapIds(EnsDb.Hsapiens.v86, keys=rowData(sce)$ID, 
-                   column="SEQNAME", keytype="GENEID")
+rownames(sce) <- uniquifyFeatureNames(rowData(sce)$ID, rowData(sce)$Symbol)
+location <- mapIds(EnsDb.Hsapiens.v86, keys=rowData(sce)$ID, column="SEQNAME", keytype="GENEID")
 rowData(sce)$CHR <- location
 
 
@@ -234,7 +232,7 @@ pheatmap(coassign, cluster_row=FALSE, cluster_col=FALSE,
 # ------------
 
 # markers <- findMarkers(sce.hvg, groups=sce.hvg$label, pval.type="some", direction="up")
-markers <- findMarkers(sce.hvg, groups=sce.hvg$label, pval.type="all", direction="up")
+markers <- findMarkers(sce.hvg, groups=sce.hvg$label, pval.type="some", direction="up")
 
 
 # Collect top 10 up-regulated genes from each cluster 
@@ -299,7 +297,7 @@ ggplot(dt, aes(x = colname, y = rowname, fill = value)) +
 hm <- pheatmap(cluster_mean_top, main = "pheatmap default")
 
 # save heatmap
-save_pheatmap_png <- function(x, filename, width=1200, height=1000, res = 150) {
+save_pheatmap_png <- function(x, filename, width=1200, height=2000, res = 150) {
   png(filename, width = width, height = height, res = res)
   grid::grid.newpage()
   grid::grid.draw(x$gtable)
@@ -350,7 +348,7 @@ colData(sce.hvg)$manual_annotation <- mapply(func1, sce.hvg$label)
 # Rearrage the tab-delim with command-line:
 # awk '{print $4, $1, $2, $3 > "gene_ordering_file_formated.txt"}' gene_ordering_file.txt
 # Get unique genes:
-# awk -F , '{ a[$1]++ } END { for (b in a) { priiki
+# awk -F , '{ a[$1]++ } END { for (b in a) { print b} }
 # ------------
 # Gene ordering file
 write.table(data.frame(rowData(sce.hvg)$Symbol), file = "gene_list.txt", quote = FALSE, sep = "\t", row.names = FALSE)

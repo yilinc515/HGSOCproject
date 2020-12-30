@@ -379,3 +379,7 @@ infercnv_obj = infercnv::run(infercnv_obj,
                              denoise=T,
                              HMM=T
 )
+
+# Convert to Seurat
+
+sce03_seurat <- Convert(from = sce03.hvg, to = "seurat")
