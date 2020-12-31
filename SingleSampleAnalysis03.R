@@ -190,27 +190,29 @@ plotReducedDim(sce03.hvg, dimred="UMAP") # no available annotation
 # ------------
 # Clustering (Graph based)
 # ------------
-g <- buildSNNGraph(sce03.hvg, k=10, use.dimred = 'PCA') # need to further decide what k to use  # change k = 10 to get a finer resolution
-clust <- igraph::cluster_walktrap(g)$membership
-table(clust)
+g03 <- buildSNNGraph(sce03.hvg, k=10, use.dimred = 'PCA') # need to further decide what k to use  # change k = 10 to get a finer resolution
+clust03 <- igraph::cluster_walktrap(g03)$membership
+table(clust03)
 
 # colLabels(sce03.hvg) <- factor(clust)  THIS IS ONLY AVAILABLE IN sce03 1.9.3, needs BioC-devel
-sce03.hvg$label <- factor(clust)
+sce03$label <- factor(clust03)
+sce03.hvg$label <- factor(clust03)
+
 plotReducedDim(sce03.hvg, dimred = "UMAP", colour_by="label")  
 # plot by TSNE gives error "Error in `rownames<-`(`*tmp*`, value = c("AAACCCAAGCCACCGT-1", "AAACCCAAGGATGGCT-1",  : 
 # attempt to set 'rownames' on an object with no dimensions"
 
 
 #  Assessing cluster separation
-ratio <- clusterModularity(g, clust, as.ratio=TRUE)
+ratio <- clusterModularity(g03, clust03, as.ratio=TRUE)
 dim(ratio)
 pheatmap(log2(ratio+1), cluster_rows=FALSE, cluster_cols=FALSE,
          color=colorRampPalette(c("white", "blue"))(100))
 
 # Evaluating cluster stability
 myClusterFUN <- function(x) {
-  g <- buildSNNGraph(x, use.dimred="PCA", type="jaccard")
-  igraph::cluster_louvain(g)$membership
+  g03 <- buildSNNGraph(x, use.dimred="PCA", type="jaccard")
+  igraph::cluster_louvain(g03)$membership
 }
 
 originals <- myClusterFUN(sce03.hvg)
@@ -334,9 +336,12 @@ func1 <- function(x)
   } else if (x == "1") {
     "Ambiguous"
   } else {
-    paste("Malignant cells", x) # keep clustering label
+    # paste("Malignant cells", x) # keep clustering label for inferCNV
+    "Malignant Cells"
   }
+colData(sce03)$manual_annotation <- mapply(func1, sce03$label)
 colData(sce03.hvg)$manual_annotation <- mapply(func1, sce03.hvg$label)
+
 
 
 # ------------
