@@ -190,12 +190,14 @@ plotReducedDim(sce.hvg, dimred="UMAP") # no available annotation
 # ------------
 # Clustering (Graph based)
 # ------------
-g <- buildSNNGraph(sce.hvg, k=20, use.dimred = 'PCA') # need to further decide what k to use
-clust <- igraph::cluster_walktrap(g)$membership
-table(clust)
+library(scran)
+g02 <- buildSNNGraph(sce.hvg, k=20, use.dimred = 'PCA') # need to further decide what k to use
+clust02 <- igraph::cluster_walktrap(g02)$membership
+table(clust02)
 
 # colLabels(sce.hvg) <- factor(clust)  THIS IS ONLY AVAILABLE IN SCE 1.9.3, needs BioC-devel
-sce.hvg$label <- factor(clust)
+sce$label <- factor(clust02) # label the original dataset
+sce.hvg$label <- factor(clust02)
 plotReducedDim(sce.hvg, dimred = "UMAP", colour_by="label")  
 # plot by TSNE gives error "Error in `rownames<-`(`*tmp*`, value = c("AAACCCAAGCCACCGT-1", "AAACCCAAGGATGGCT-1",  : 
 # attempt to set 'rownames' on an object with no dimensions"
@@ -338,9 +340,13 @@ func1 <- function(x)
   } else if (x == "13") {
     "T-cells"
   } else {
-    paste("Malignant cells", x) # keep clustering label
+    # paste("Malignant cells", x) # keep clustering label for inferCNV purposes
+    "Malignant cells"
   }
 colData(sce.hvg)$manual_annotation <- mapply(func1, sce.hvg$label)
+# label the original
+colData(sce)$manual_annotation <- mapply(func1, sce$label)
+
 
 
 # ------------
