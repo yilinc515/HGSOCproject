@@ -1,5 +1,5 @@
 #----------------------------------------------------------------------
-# DATA PREP
+# Data Preparations
 #----------------------------------------------------------------------
 
 
@@ -17,6 +17,11 @@ load("gene_counts_17667X1-3.RData")
 # unify colnames with scRNA-seq data
 colnames(gse) <- c("16030X3", "16030X2", "16030X4")
 
+# note that gse's Ensemble ID has dot suffix as version number
+# in order to unify with sc data, strip the version number in rownames to use just the Ensembl ID
+library(stringr)
+rownames(gse) <- str_replace(rownames(gse), pattern = ".[0-9]+$", replacement = "")
+
 # ------
 # convert bulk data to ExpressionSet 
 # https://github.com/xuranw/MuSiC/issues/2
@@ -24,9 +29,9 @@ colnames(gse) <- c("16030X3", "16030X2", "16030X4")
 metadata <- data.frame(labelDescription= c("names"), row.names=c("names"))
 # gene_exprs.matrix = assays(gse)$counts, pheno.matrix = colData(gse)
 # convert DFrame to data.frame
-exprs.matrix <- as.data.frame(colData(gse))
+pheno.matrix <- as.data.frame(colData(gse))
 # construct ExpressionSet of bulk data
-bulk.eset = ExpressionSet(assayData = data.matrix(assays(gse)$counts), phenoData =  new("AnnotatedDataFrame", data = exprs.matrix, varMetadata = metadata) )
+bulk.eset = ExpressionSet(assayData = data.matrix(assays(gse)$counts), phenoData =  new("AnnotatedDataFrame", data = pheno.matrix, varMetadata = metadata))
 
 
 # ------
@@ -93,6 +98,14 @@ sc.eset = ExpressionSet(assayData = data.matrix(sc.exprs.matrix), phenoData =  n
 
 
 
+
+#----------------------------------------------------------------------
+# RUN MuSiC
+# https://xuranw.github.io/MuSiC/articles/MuSiC.html
+#----------------------------------------------------------------------
+library(MuSiC)
+library(xbioc) # for pVar()
+Est.prop = music_prop(bulk.eset = bulk.eset, sc.eset = sc.eset, clusters = 'manual_annotation', samples = 'Sample')
 
 
 
