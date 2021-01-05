@@ -37,7 +37,9 @@ bulk.eset = ExpressionSet(assayData = data.matrix(assays(gse)$counts), phenoData
 # ------
 # load single-cell data 
 # ------
-load("123020.RData")
+load("sce02.RData")
+load("sce03.RData")
+load("sce04.RData")
 
 # ------
 # processing X02
@@ -71,7 +73,7 @@ pheno04.matrix <- colData(sce04.copy)
 
 
 # ------
-# combine expression matrix
+# combine expression matrix since MuSiC starts with multi-subject scRNA-seq data
 # ------
 library(Seurat)
 sc.exprs.matrix <- RowMergeSparseMatrices(exprs02.matrix, exprs03.matrix)
@@ -102,15 +104,12 @@ sc.eset = ExpressionSet(assayData = data.matrix(sc.exprs.matrix), phenoData =  n
 #----------------------------------------------------------------------
 # RUN MuSiC
 # https://xuranw.github.io/MuSiC/articles/MuSiC.html
+# see sample anaylsis
 #----------------------------------------------------------------------
 library(MuSiC)
 library(xbioc) # for pVar()
+# run!
 Est.prop = music_prop(bulk.eset = bulk.eset, sc.eset = sc.eset, clusters = 'manual_annotation', samples = 'Sample')
-
-
-
-
-
 
 
 
