@@ -81,17 +81,20 @@ write.table(bulk, file = "scaden/X020304_bulk_data.txt", quote = FALSE, sep = "\
 # Further deconvolution process in python/3.6.9 environment
 # source ~/scadenvenv/bin/activate
 # -----------------
-
+#---------------Script-----------------
 # generate training data (artificial bulk) for Scaden
 # eg.  generate 1000 artificial bulk samples from 200 cells per samples with the following command
-scaden simulate --cells 200 --n_samples 2000 --data scaden  --pattern *_counts.txt --out scaden
+scaden simulate --cells 100 --n_samples 1000 --data scaden  --pattern *_counts.txt
 
 
 # pre-process training data
-scaden process scaden/data.h5ad scaden/X020304_bulk_data.txt
+scaden process data.h5ad scaden/X020304_bulk_data.txt
 
 # model traning
 scaden train processed.h5ad --model_dir scaden/model
 
 # perform the prediction
 scaden predict scaden/X020304_bulk_data.txt --model_dir scaden/model
+
+#---------------RUN-----------------
+qsub -l mem_free=50G -cwd -m e -M ychen338@jhu.edu scaden.sh
