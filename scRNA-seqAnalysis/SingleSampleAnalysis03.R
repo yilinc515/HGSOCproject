@@ -343,6 +343,12 @@ colData(sce03)$manual_annotation <- mapply(func1, sce03$label)
 colData(sce03.hvg)$manual_annotation <- mapply(func1, sce03.hvg$label)
 
 
+#-------------
+# Save data
+#-------------
+save(sce03.hvg, sce03, file = "sce03.RData")
+
+
 
 # ------------
 # InferCNV input preparation, see inferCNV wgene_ordering_file.txt using gene_list03.txt and hg19
