@@ -97,4 +97,4 @@ scaden train processed.h5ad --model_dir scaden/model
 scaden predict scaden/X020304_bulk_data.txt --model_dir scaden/model
 
 #---------------RUN-----------------
-qsub -l mem_free=50G -cwd -m e -M ychen338@jhu.edu scaden.sh
+qsub -l mem_free=20G -cwd -m e -M ychen338@jhu.edu scaden.sh
